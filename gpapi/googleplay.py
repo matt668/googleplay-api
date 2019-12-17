@@ -218,8 +218,8 @@ class GooglePlayAPI(object):
             params['add_account'] = '1'
             params['callerPkg'] = 'com.google.android.gms'
             headers = self.deviceBuilder.getAuthHeaders(self.gsfId)
-            headers['app'] = 'com.google.android.gsm'
-            response = requests.post(AUTH_URL, data=params, verify=ssl_verify,
+            headers['app'] = 'com.google.android.gms'
+            response = requests.post(AUTH_URL, data=params, headers=headers, verify=ssl_verify,
                                      proxies=self.proxies_config)
             data = response.text.split()
             params = {}
@@ -553,12 +553,20 @@ class GooglePlayAPI(object):
             result = {}
             result['docId'] = packageName
             result['additionalData'] = []
+            result['split'] = []
             downloadUrl = response.payload.deliveryResponse.appDeliveryData.downloadUrl
             cookie = response.payload.deliveryResponse.appDeliveryData.downloadAuthCookie[0]
             cookies = {
                 str(cookie.name): str(cookie.value)
             }
             result['file'] = self._deliver_data(downloadUrl, cookies)
+
+            for obb in response.payload.deliveryResponse.appDeliveryData.split:
+                a = {}
+                a['name'] = obb.name
+                a['file'] = self._deliver_data(obb.downloadUrl, None)
+                result['split'].append(a)
+
             if not expansion_files:
                 return result
             for obb in response.payload.deliveryResponse.appDeliveryData.additionalFile:
