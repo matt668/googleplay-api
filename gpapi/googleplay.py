@@ -272,7 +272,7 @@ class GooglePlayAPI(object):
             params[k.strip().lower()] = v.strip()
         if "token" in params:
             master_token = params["token"]
-            second_round_token = self.getSecondRoundToken(master_token, requestParams)
+            second_round_token = self.getSecondRoundToken(master_token, requestParams)[0]
             self.setAuthSubToken(second_round_token)
         elif "error" in params:
             raise LoginError("server says: " + params["error"])
@@ -288,6 +288,7 @@ class GooglePlayAPI(object):
         params['system_partition'] = '1'
         params['_opt_is_called_from_account_manager'] = '1'
         params['service'] = OAUTH_SERVICE
+        params['app'] = 'com.android.vending'
         params.pop('Email')
         params.pop('EncryptedPasswd')
         headers = self.deviceBuilder.getAuthHeaders(self.gsfId)
@@ -305,7 +306,7 @@ class GooglePlayAPI(object):
             k, v = d.split("=", 1)
             params[k.strip().lower()] = v.strip()
         if "auth" in params:
-            return params["auth"]
+            return (params["auth"], params["expiry"])
         elif "error" in params:
             raise LoginError("server says: " + params["error"])
         else:
