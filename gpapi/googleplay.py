@@ -498,7 +498,7 @@ class GooglePlayAPI(object):
             output.append(utils.parseProtobufObj(review))
         return output
 
-    def _deliver_data(self, url, cookies):
+    def deliver_data(self, url, cookies):
         headers = self.getHeaders()
         response = requests.get(url, headers=headers,
                                 cookies=cookies, verify=ssl_verify,
@@ -559,16 +559,17 @@ class GooglePlayAPI(object):
             result['additionalData'] = []
             result['splits'] = []
             downloadUrl = response.payload.deliveryResponse.appDeliveryData.downloadUrl
+            downloadSize = response.payload.deliveryResponse.appDeliveryData.downloadSize
             cookie = response.payload.deliveryResponse.appDeliveryData.downloadAuthCookie[0]
             cookies = {
                 str(cookie.name): str(cookie.value)
             }
-            result['file'] = self._deliver_data(downloadUrl, cookies)
+            result['file'] = {"url": downloadUrl, "cookies": cookies, "size": downloadSize}
 
             for split in response.payload.deliveryResponse.appDeliveryData.split:
                 a = {}
                 a['name'] = split.name
-                a['file'] = self._deliver_data(split.downloadUrl, None)
+                a['file'] = {"url": split.downloadUrl, "cookies": None, "size": split.size}
                 result['splits'].append(a)
 
             if not expansion_files:
@@ -583,7 +584,7 @@ class GooglePlayAPI(object):
                     obbType = 'patch'
                 a['type'] = obbType
                 a['versionCode'] = obb.versionCode
-                a['file'] = self._deliver_data(obb.downloadUrl, None)
+                a['file'] = {"url": obb.downloadUrl, "cookies": None, "size": obb.size}
                 result['additionalData'].append(a)
             return result
 
