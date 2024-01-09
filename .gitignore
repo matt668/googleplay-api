@@ -8,6 +8,10 @@ dist/
 *.egg-info/
 .idea/
 .venv/
+venv
+.vscode/
+login.json
+local_example.py
 
 # This file will be generated during build
 gpapi/googleplay_pb2.py
