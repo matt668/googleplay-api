@@ -34,6 +34,7 @@ TOC_URL = FDFE + "toc"
 ACCEPT_TOS_URL = FDFE + "acceptTos"
 LIST_URL = FDFE + "list"
 REVIEWS_URL = FDFE + "rev"
+OAUTH_SERVICE = "oauth2:https://www.googleapis.com/auth/googleplay"
 
 CONTENT_TYPE_URLENC = "application/x-www-form-urlencoded; charset=UTF-8"
 CONTENT_TYPE_PROTO = "application/x-protobuf"
@@ -141,7 +142,7 @@ class GooglePlayAPI(object):
         if self.gsfId is not None:
             headers["X-DFE-Device-Id"] = "{0:x}".format(self.gsfId)
         if self.authSubToken is not None:
-            headers["Authorization"] = "GoogleLogin auth=%s" % self.authSubToken
+            headers["Authorization"] = "Bearer %s" % self.authSubToken
         if self.device_config_token is not None:
             headers["X-DFE-Device-Config-Token"] = self.device_config_token
         if self.deviceCheckinConsistencyToken is not None:
@@ -218,8 +219,8 @@ class GooglePlayAPI(object):
             params['add_account'] = '1'
             params['callerPkg'] = 'com.google.android.gms'
             headers = self.deviceBuilder.getAuthHeaders(self.gsfId)
-            headers['app'] = 'com.google.android.gms'
-            response = requests.post(AUTH_URL, data=params, headers=headers, verify=ssl_verify,
+            headers['app'] = 'com.google.android.gsm'
+            response = requests.post(AUTH_URL, data=params, verify=ssl_verify,
                                      proxies=self.proxies_config)
             data = response.text.split()
             params = {}
@@ -271,7 +272,7 @@ class GooglePlayAPI(object):
             params[k.strip().lower()] = v.strip()
         if "token" in params:
             master_token = params["token"]
-            second_round_token = self.getSecondRoundToken(master_token, requestParams)
+            second_round_token = self.getSecondRoundToken(master_token, requestParams)[0]
             self.setAuthSubToken(second_round_token)
         elif "error" in params:
             raise LoginError("server says: " + params["error"])
@@ -286,6 +287,8 @@ class GooglePlayAPI(object):
         params['token_request_options'] = 'CAA4AQ=='
         params['system_partition'] = '1'
         params['_opt_is_called_from_account_manager'] = '1'
+        params['service'] = OAUTH_SERVICE
+        params['app'] = 'com.android.vending'
         params.pop('Email')
         params.pop('EncryptedPasswd')
         headers = self.deviceBuilder.getAuthHeaders(self.gsfId)
@@ -303,7 +306,7 @@ class GooglePlayAPI(object):
             k, v = d.split("=", 1)
             params[k.strip().lower()] = v.strip()
         if "auth" in params:
-            return params["auth"]
+            return (params["auth"], params["expiry"])
         elif "error" in params:
             raise LoginError("server says: " + params["error"])
         else:
@@ -532,7 +535,8 @@ class GooglePlayAPI(object):
 
         if versionCode is None:
             # pick up latest version
-            versionCode = self.details(packageName).get('versionCode')
+            appDetails = self.details(packageName).get('details').get('appDetails')
+            versionCode = appDetails.get('versionCode')
 
         params = {'ot': str(offerType),
                   'doc': packageName,
@@ -553,7 +557,7 @@ class GooglePlayAPI(object):
             result = {}
             result['docId'] = packageName
             result['additionalData'] = []
-            result['split'] = []
+            result['splits'] = []
             downloadUrl = response.payload.deliveryResponse.appDeliveryData.downloadUrl
             cookie = response.payload.deliveryResponse.appDeliveryData.downloadAuthCookie[0]
             cookies = {
@@ -561,11 +565,11 @@ class GooglePlayAPI(object):
             }
             result['file'] = self._deliver_data(downloadUrl, cookies)
 
-            for obb in response.payload.deliveryResponse.appDeliveryData.split:
+            for split in response.payload.deliveryResponse.appDeliveryData.split:
                 a = {}
-                a['name'] = obb.name
-                a['file'] = self._deliver_data(obb.downloadUrl, None)
-                result['split'].append(a)
+                a['name'] = split.name
+                a['file'] = self._deliver_data(split.downloadUrl, None)
+                result['splits'].append(a)
 
             if not expansion_files:
                 return result
@@ -612,7 +616,7 @@ class GooglePlayAPI(object):
         params = {'ot': str(offerType),
                   'doc': packageName,
                   'vc': str(versionCode)}
-        self.log(packageName)
+        #self.log(packageName)
         response = requests.post(PURCHASE_URL, headers=headers,
                                  params=params, verify=ssl_verify,
                                  timeout=60,
